@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Courtroom of Agents — put a decision on trial</title>
+<meta name="description" content="Three agents argue any decision you bring: a prosecutor against it, a defender for it, and a judge who delivers a verdict with citations.">
+<link rel="stylesheet" href="fonts/fonts.css">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="topbar-inner">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true">§</span>
+      <div>
+        <h1>Courtroom of Agents</h1>
+        <p>Every decision, argued on the record.</p>
+      </div>
+    </div>
+    <nav class="topnav" aria-label="Main">
+      <button data-nav="library" class="nav-btn active" type="button">Case library</button>
+      <button data-nav="new" class="nav-btn" type="button">Bring a decision</button>
+      <button data-nav="history" class="nav-btn" type="button">History <span id="history-count" class="count-badge">0</span></button>
+      <button data-nav="settings" class="nav-btn" type="button">Settings</button>
+    </nav>
+    <div class="key-status" id="key-status" title="Live debate needs a free Gemini API key. Without one, recorded cases still play.">
+      <span class="dot" id="key-dot"></span><span id="key-label">Replay only</span>
+    </div>
+  </div>
+</header>
+
+<main class="page">
+  <!-- LIBRARY -->
+  <section id="view-library" class="view">
+    <div class="intro">
+      <p class="kicker">The docket</p>
+      <h2>Four decisions already tried. Bring your own, or watch one.</h2>
+      <p class="lede">A prosecutor argues against the decision. A defender argues for it. The judge scores both and delivers a verdict that cites the transcript line by line. Recorded cases play with no key. A live trial needs a free Gemini key — yours, kept in your browser.</p>
+    </div>
+    <div class="case-grid" id="case-grid"></div>
+    <div class="how">
+      <h3>How a trial runs</h3>
+      <ol>
+        <li><strong>Three rounds, fixed order.</strong> Prosecutor, then defender, each round. The judge cross-examines after rounds two and three. No extra rounds, no drifting.</li>
+        <li><strong>Each side must steelman the other.</strong> Once a round, an advocate states the other side's strongest point fairly — then rebuts it. "I agree" is not allowed.</li>
+        <li><strong>The judge scores, not summarises.</strong> Evidence, logic, and risk, 0–10 each, shown live beside the transcript.</li>
+        <li><strong>The verdict cites its lines.</strong> Every verdict names the turns it relies on. Click a citation and the transcript jumps to the line. Object, or challenge the verdict, at any point.</li>
+      </ol>
+    </div>
+  </section>
+
+  <!-- NEW DECISION -->
+  <section id="view-new" class="view" hidden>
+    <div class="form-card">
+      <p class="kicker">New case</p>
+      <h2>Bring a decision</h2>
+      <p class="lede">Write the decision as a question, with the numbers that matter. The prosecutor will argue against it and the defender for it — whichever side you are on.</p>
+      <form id="new-case-form">
+        <label for="q">The decision <span class="req">required</span></label>
+        <input id="q" name="q" type="text" required maxlength="200" placeholder="Should we kill our free tier?" autocomplete="off">
+        <label for="ctx">Context — the facts both sides must argue from</label>
+        <textarea id="ctx" name="ctx" rows="5" maxlength="2000" placeholder="Numbers, constraints, what is at stake. Anything not written here, the agents must say they do not know — they may not invent it."></textarea>
+        <fieldset>
+          <legend>Stakes</legend>
+          <label class="radio"><input type="radio" name="stakes" value="low"> Low</label>
+          <label class="radio"><input type="radio" name="stakes" value="medium" checked> Medium</label>
+          <label class="radio"><input type="radio" name="stakes" value="high"> High</label>
+        </fieldset>
+        <p class="form-note" id="new-form-note"></p>
+        <div class="form-actions">
+          <button class="btn primary" type="submit" id="start-trial-btn">Open the trial</button>
+          <button class="btn" type="button" id="fill-example-btn">Fill in an example</button>
+        </div>
+      </form>
+      <div id="brief" class="brief" hidden></div>
+    </div>
+  </section>
+
+  <!-- TRIAL -->
+  <section id="view-trial" class="view" hidden>
+    <button class="btn small" type="button" id="back-btn">← Back to the library</button>
+    <div class="docket">
+      <div class="docket-left">
+        <p class="kicker" id="docket-number">COA-2026-000</p>
+        <h2 id="docket-question">—</h2>
+        <p class="docket-context" id="docket-context"></p>
+        <p class="docket-meta"><span id="docket-stakes"></span> · <span id="docket-mode"></span> · <span id="docket-date"></span></p>
+      </div>
+      <div class="docket-right">
+        <div class="scoreboard" id="scoreboard" aria-label="Live scores">
+          <div class="score-side">
+            <span class="score-label">Prosecution</span>
+            <span class="score-num" id="score-p">—</span>
+            <div class="score-bar"><span id="bar-p"></span></div>
+          </div>
+          <div class="score-side">
+            <span class="score-label">Defence</span>
+            <span class="score-num" id="score-d">—</span>
+            <div class="score-bar"><span id="bar-d"></span></div>
+          </div>
+        </div>
+        <p class="round-marker" id="round-marker">Not started</p>
+      </div>
+    </div>
+
+    <div class="trial-grid">
+      <div class="transcript-col">
+        <div class="transcript-head">
+          <h3>Transcript</h3>
+          <button class="btn small primary" type="button" id="play-btn">Play the trial</button>
+        </div>
+        <p class="trial-status" id="trial-status">Press play. Turns appear one at a time.</p>
+        <ol class="transcript" id="transcript"></ol>
+
+        <div class="objection-box">
+          <h3>Raise an objection</h3>
+          <p>Inject a fact mid-trial. The judge must address it before the verdict.</p>
+          <div class="objection-row">
+            <input id="objection-input" type="text" maxlength="280" placeholder="e.g. Churn rose 8% last quarter" autocomplete="off">
+            <button class="btn" type="button" id="objection-btn">Object</button>
+          </div>
+          <ul class="objections" id="objections-list"></ul>
+        </div>
+      </div>
+
+      <aside class="verdict-col">
+        <div class="verdict-card" id="verdict-card">
+          <p class="kicker">Verdict</p>
+          <div id="verdict-empty">
+            <p class="verdict-wait">The verdict arrives when the third round ends. It will name its decision, its confidence, and the exact lines it relies on.</p>
+          </div>
+          <div id="verdict-body" hidden></div>
+        </div>
+        <div class="trial-actions">
+          <button class="btn" type="button" id="export-btn" disabled>Export transcript (.md)</button>
+          <button class="btn" type="button" id="copy-verdict-btn" disabled>Copy verdict</button>
+        </div>
+        <div class="challenge-box" id="challenge-box" hidden>
+          <h3>Challenge the verdict</h3>
+          <p>One sentence. If the challenge finds a real gap, the judge revises — and both verdicts stay on the record.</p>
+          <textarea id="challenge-input" rows="2" maxlength="280" placeholder="e.g. You ignored the migration cost"></textarea>
+          <button class="btn" type="button" id="challenge-btn">Send the challenge</button>
+          <div id="challenge-result"></div>
+        </div>
+      </aside>
+    </div>
+  </section>
+
+  <!-- HISTORY -->
+  <section id="view-history" class="view" hidden>
+    <p class="kicker">History</p>
+    <h2>Past trials</h2>
+    <p class="lede">Saved in this browser only. Nothing leaves your machine.</p>
+    <div id="history-list"></div>
+    <button class="btn danger" type="button" id="clear-history-btn">Clear all history</button>
+  </section>
+
+  <!-- SETTINGS -->
+  <section id="view-settings" class="view" hidden>
+    <div class="form-card narrow">
+      <p class="kicker">Settings</p>
+      <h2>Live debate key</h2>
+      <p class="lede">Live trials call the Google Gemini API from your browser. Get a free key from <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">Google AI Studio</a> — no card needed. The key is stored in this browser's local storage only, and is sent only to Google's API.</p>
+      <label for="api-key">Gemini API key</label>
+      <input id="api-key" type="password" autocomplete="off" placeholder="AIza…">
+      <label for="model">Model</label>
+      <select id="model">
+        <option value="gemini-3.5-flash">gemini-3.5-flash (default, free tier)</option>
+        <option value="gemini-3.8-flash">gemini-3.8-flash (free tier)</option>
+        <option value="gemini-3.5-flash-lite">gemini-3.5-flash-lite (free tier, faster)</option>
+      </select>
+      <p class="form-note" id="settings-note"></p>
+      <div class="form-actions">
+        <button class="btn primary" type="button" id="save-key-btn">Save key</button>
+        <button class="btn danger" type="button" id="remove-key-btn">Remove key</button>
+      </div>
+      <h3 class="settings-sub">About the recorded cases</h3>
+      <p>The four cases in the library are pre-recorded transcripts, written as real trials. They play with no key and are labelled as replays on every screen. They are not live debates, and nothing in them is presented as one.</p>
+      <h3 class="settings-sub">What the judge's scores are</h3>
+      <p>Rubric scores from the model — evidence, logic, risk, 0–10 each. They are judgements, not measurements. The transcript and citations are there so you can check the reasoning yourself.</p>
+    </div>
+  </section>
+</main>
+
+<footer class="footer">
+  <p>Courtroom of Agents — a demo. Recorded cases are replays; live trials need your own free Gemini key. Trials are saved in this browser only.</p>
+</footer>
+
+<script src="js/courtroom.js"></script>
+<script src="js/seed.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
