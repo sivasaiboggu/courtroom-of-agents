@@ -59,7 +59,7 @@ and plays it.
 ## Tests
 
 ```sh
-node --test tests/courtroom.test.js   # 13 tests, 0 failures
+node --test tests/courtroom.test.js   # 15 tests, 0 failures
 node scripts/smoke.mjs               # 19 checks in headless Chrome
 node scripts/shots.mjs               # screenshots at 1280px + 390px
 ```

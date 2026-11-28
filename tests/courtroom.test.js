@@ -185,6 +185,29 @@ test('liveTurn retries once on a banned phrase, then gives up honestly', async (
   assert.equal(calls2, 2, 'exactly one retry, then it stops instead of faking a turn');
 });
 
+test('seed: steelman is not in every argument turn, so the UI tag must be conditional', () => {
+  // Regression: renderTurn tagged every argument turn "Steelman included",
+  // but only 3 of 6 argument turns per recorded case actually open with one
+  // (round 2 both sides + round 3 defender argue without the marker).
+  for (const c of SEED_CASES) {
+    const args = c.turns.filter(t => t.kind === 'argument');
+    assert.ok(args.filter(t => /steelman/i.test(t.text)).length >= 1, c.id + ' has a steelman turn');
+    assert.ok(args.some(t => !/steelman/i.test(t.text)), c.id + ' has an argument turn without one');
+    assert.ok(args.filter(t => t.round === 1).every(t => /steelman/i.test(t.text)), c.id + ' round 1 turns steelman');
+  }
+});
+
+test('app.js: steelman tag, revised-verdict check and copy failure are honest', () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const appSrc = fs.readFileSync(path.join(__dirname, '..', 'js', 'app.js'), 'utf8');
+  assert.match(appSrc, /\/steelman\/i\.test\(turn\.text\)/, 'tag only when the turn text has a steelman');
+  assert.ok(!/function esc\(s\)/.test(appSrc), 'dead no-op esc() removed');
+  assert.match(appSrc, /validateVerdict\(parsed\.verdict, current\.turns\.length\)/, 'a changed verdict is validated before it replaces the original');
+  assert.match(appSrc, /did not give a usable revised verdict/, 'an unusable revised verdict keeps the original and says so');
+  assert.match(appSrc, /copy-verdict-btn'\)\.textContent = 'Copy failed'/, 'clipboard rejection is reported, not swallowed');
+});
+
 test('challenge prompt includes the verdict and the challenge', () => {
   const p = C.buildChallengePrompt({ question: 'Q?' }, { decision: 'amend', confidence: 70 }, 'You ignored the migration cost.');
   assert.match(p, /migration cost/);

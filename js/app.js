@@ -40,7 +40,6 @@
     if (text != null) n.textContent = text;
     return n;
   }
-  function esc(s) { return String(s == null ? '' : s); }
   function speakerName(s) {
     return s === 'prosecutor' ? 'Prosecutor' : s === 'defender' ? 'Defender' : 'Judge';
   }
@@ -187,7 +186,7 @@
     head.appendChild(el('span', 'turn-speaker ' + turn.speaker, speakerName(turn.speaker)));
     head.appendChild(el('span', 'turn-meta', 'Turn ' + (index + 1) + ' · Round ' + turn.round + ' · ' + turn.kind));
     if (turn.durationMs != null) head.appendChild(el('span', 'turn-meta', (turn.durationMs / 1000).toFixed(1) + 's'));
-    if (turn.kind === 'argument' && turn.speaker !== 'judge') head.appendChild(el('span', 'steelman-tag', 'Steelman included'));
+    if (turn.kind === 'argument' && turn.speaker !== 'judge' && /steelman/i.test(turn.text)) head.appendChild(el('span', 'steelman-tag', 'Steelman included'));
     li.appendChild(head);
     li.appendChild(el('p', null, turn.text));
     if (turn.scores) {
@@ -464,7 +463,14 @@
         var parsed = C.extractJson(reply);
         result.innerHTML = '';
         if (!parsed) { result.appendChild(el('p', null, 'The judge did not answer in a usable form. The original verdict stands.')); return; }
-        if (parsed.changed && parsed.verdict) {
+        if (parsed.changed) {
+          // A revised verdict is still a verdict: it must pass the same
+          // validation as a first verdict, or the original stands.
+          var check = C.validateVerdict(parsed.verdict, current.turns.length);
+          if (!parsed.verdict || !check.ok) {
+            result.appendChild(el('p', null, 'The judge said the verdict should change, but did not give a usable revised verdict' + (check.reason ? ' (' + check.reason + ')' : '') + '. The original verdict stands.'));
+            return;
+          }
           current.verdict = parsed.verdict;
           current.verdict.challenged = true;
           renderVerdict(current.verdict);
@@ -501,6 +507,9 @@
       'Risks: ' + (v.risks || []).join(' / ');
     navigator.clipboard.writeText(text).then(function () {
       $('copy-verdict-btn').textContent = 'Copied';
+      setTimeout(function () { $('copy-verdict-btn').textContent = 'Copy verdict'; }, 1500);
+    }).catch(function () {
+      $('copy-verdict-btn').textContent = 'Copy failed';
       setTimeout(function () { $('copy-verdict-btn').textContent = 'Copy verdict'; }, 1500);
     });
   });
